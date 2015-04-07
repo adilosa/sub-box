@@ -25,7 +25,12 @@
 
         .video {
             border-bottom: 1px solid #e2e2e2;
-            padding: 15px 15px 25px;
+            padding: 15px;
+        }
+
+        .video img {
+            padding-bottom: 10px;
+            width: 100%;
         }
     </style>
 </head>
@@ -95,11 +100,8 @@
                 $.each(response.result.items, function(i, subscription) {
                     subscriptions.push(subscription.snippet.resourceId.channelId);
                 });
-                if (response.result.nextPageToken) {
-                    requestUserSubscriptions(response.result.nextPageToken);
-                } else {
-                    requestChannelInfo();
-                }
+                var next = response.result.nextPageToken;
+                next ? requestUserSubscriptions(next) : requestChannelInfo()
             });
         }
 
@@ -156,7 +158,7 @@
             batch.then(function(responses) {
                 $.each(responses.result, function(i, response) {
                     $.each(response.result.items, function(i, video) {
-                        videos.push(video.snippet);
+                        videos.push(video);
                     });
                 });
                 displayVideos(videos);
@@ -165,27 +167,25 @@
 
         function displayVideos(videos) {
             videos.sort(function(a, b) {
-                var aDate = new Date(a.publishedAt);
-                var bDate = new Date(b.publishedAt);
-                return aDate > bDate ? -1 : (aDate < bDate ? 1 : 0);
+                a = new Date(a.snippet.publishedAt); b = new Date(b.snippet.publishedAt);
+                return a > b ? -1 : (a < b ? 1 : 0);
             });
             var fragment = document.createDocumentFragment();
-            $.each(videos, function(i, video) {
-                delete videos[i];
+            $.each(videos.slice(0,100), function(i, video) {
                 var d = document.createElement('div');
                 d.className = "row video";
                 d.innerHTML = "<div class='col-xs-12'>" +
                                    "<div class='row'>" +
-                                       "<div class='col-xs-12'><h4>" + video.channelTitle + "</h4></div>" +
+                                       "<div class='col-xs-12'><h4>" + video.snippet.channelTitle + "</h4></div>" +
                                    "</div>" +
                                    "<div class='row'>" +
-                                       "<div class='col-xs-4'>" +
-                                           "<img src='" + video.thumbnails.medium.url + "'>" +
+                                       "<div class='col-xs-12 col-sm-5 col-md-4'>" +
+                                           "<a href='https://youtube.com/watch?v=" + video.id + "'><img src='" + video.snippet.thumbnails.medium.url + "'></a>" +
                                        "</div>" +
-                                       "<div class='col-xs-8'>" +
-                                           "<a href='#'><strong>" + video.title + "</strong></a>" +
-                                           "<p>" + new Date(video.publishedAt).toLocaleString() + "</p>" +
-                                           "<p>" + video.description + "</p>" +
+                                       "<div class='col-xs-12 col-sm-7 col-md-8'>" +
+                                           "<a href='https://youtube.com/watch?v=" + video.id + "'><strong>" + video.snippet.title + "</strong></a>" +
+                                           "<p>" + new Date(video.snippet.publishedAt).toLocaleString() + "</p>" +
+                                           "<p>" + video.snippet.description + "</p>" +
                                        "</div>" +
                                    "</div>" +
                               "</div>";
