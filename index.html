@@ -2,21 +2,44 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title></title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sub-Box</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+    <style type="text/css">
+        body {
+            padding-top: 50px;
+            background: #f1f1f1;
+        }
+
+        #login-container {
+            padding: 40px 16px;
+            text-align: center;
+        }
+
+        #video-container {
+            margin: 10px 0;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .1);
+        }
+
+        .video {
+            border-bottom: 1px solid #e2e2e2;
+        }
+    </style>
 </head>
 <body>
-    <div id="login-container" class="pre-auth">
-      This application requires access to your YouTube account.
-      Please <a href="#" id="login-link">authorize</a> to continue.
+    <div class="container">
+        <div class="row">
+            <div id="login-container" class="pre-auth col-xs-12 col-sm-6 col-sm-offset-3">
+                <h1>Access to YouTube Required</h1>
+                <p class="lead">This application requires acces to your YouTube account in order to see what channel's your subscribed to.</p>
+                <button class="btn btn-primary" id="login-link">Authorize</button>
+            </div>
+        </div>
+        <div id="video-container" class="row"><div class="col-xs-12"></div></div>
     </div>
-    <div class="button-container">
-        <button id="reload-button" onclick="requestUserSubscriptions()">Request Again</button>
-        <button id="display-button" onclick="displayVideos()">Display</button>
-    </div>
-    <div id="video-container"></div>
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
-    <script type="text/javascript" src="auth.js"></script>
-    <script type="text/javascript" src="my_uploads.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
     <script type="text/javascript">
         var OAUTH2_CLIENT_ID = '126126374554-rds5pbeaqeriq64jqfsnmgev16rnhn72.apps.googleusercontent.com';
         var OAUTH2_SCOPES = [
@@ -25,7 +48,7 @@
 
         googleApiClientReady = function() {
           gapi.auth.init(function() {
-            window.setTimeout(checkAuth, 1);
+              window.setTimeout(checkAuth, 1);
           });
         }
 
@@ -40,7 +63,6 @@
         function handleAuthResult(authResult) {
           if (authResult && !authResult.error) {
             $('.pre-auth').hide();
-            $('.post-auth').show();
             loadAPIClientInterfaces();
           } else {
             $('#login-link').click(function() {
@@ -55,27 +77,19 @@
 
         function loadAPIClientInterfaces() {
           gapi.client.load('youtube', 'v3', function() {
-            handleAPILoaded();
+              requestUserSubscriptions();
           });
-        }
-
-        function handleAPILoaded() {
-            requestUserSubscriptions();
         }
 
         var subscriptions = [];
         function requestUserSubscriptions(pageToken) {
-            if (!pageToken) {
-                subscriptions = [];
-            }
+            if (!pageToken) subscriptions = [];
             var requestOptions = {
                 mine: true,
                 part: 'snippet',
                 maxResults: 50
             }
-            if (pageToken) {
-                requestOptions.pageToken = pageToken;
-            }
+            if (pageToken) requestOptions.pageToken = pageToken;
             gapi.client.youtube.subscriptions.list(requestOptions).then(function (response) {
                 $.each(response.result.items, function(i, subscription) {
                     subscriptions.push(subscription.snippet.resourceId.channelId);
@@ -88,7 +102,6 @@
             });
         }
 
-        var playlistIds = [];
         function requestChannelInfo() {
             playlistIds = [];
             var batch = gapi.client.newBatch();
@@ -105,12 +118,11 @@
                         playlistIds.push(channel.contentDetails.relatedPlaylists.uploads);
                     });
                 });
-                requestPlaylists();
+                requestPlaylists(playlistIds);
             });
         }
 
-        var videoIds = [];
-        function requestPlaylists() {
+        function requestPlaylists(playlistIds) {
             videoIds = [];
             var batch = gapi.client.newBatch();
             while(playlistIds.length) {
@@ -126,12 +138,11 @@
                         videoIds.push(playlistItem.snippet.resourceId.videoId);
                     });
                 });
-                requestVideos();
+                requestVideos(videoIds);
             });
         }
 
-        var videos = [];
-        function requestVideos() {
+        function requestVideos(videoIds) {
             videos = [];
             var batch = gapi.client.newBatch();
             while(videoIds.length) {
@@ -147,25 +158,42 @@
                         videos.push(video.snippet);
                     });
                 });
-                displayVideos();
+                displayVideos(videos);
             });
         }
 
-        function displayVideos() {
-            videos.sort(videoComparator);
-            var html = "";
+        function displayVideos(videos) {
+            videos.sort(function(a, b) {
+                var aDate = new Date(a.publishedAt);
+                var bDate = new Date(b.publishedAt);
+                return aDate > bDate ? -1 : (aDate < bDate ? 1 : 0);
+            });
+            var fragment = document.createDocumentFragment();
             $.each(videos, function(i, video) {
-                html += "<p>" + video.title + " - " + video.channelTitle + " - " + new Date(video.publishedAt).toLocaleString() + "</p>";
+                delete videos[i];
+                var d = document.createElement('div');
+                d.className = "row video";
+                d.innerHTML = "<div class='col-xs-12'>" +
+                                   "<div class='row'>" +
+                                       "<div class='col-xs-12'><h4>" + video.channelTitle + "</h4></div>" +
+                                   "</div>" +
+                                   "<div class='row'>" +
+                                       "<div class='col-xs-4'>" +
+                                           "<img src='" + video.thumbnails.medium.url + "'>" +
+                                       "</div>" +
+                                       "<div class='col-xs-8'>" +
+                                           "<a href='#'><strong>" + video.title + "</strong></a>" +
+                                           "<p>" + new Date(video.publishedAt).toLocaleString() + "</p>" +
+                                           "<p>" + video.description + "</p>" +
+                                       "</div>" +
+                                   "</div>" +
+                              "</div>";
+                fragment.appendChild(d);
             });
-            $("#video-container").html(html);
-        }
-
-        function videoComparator(a, b) {
-            var aDate = new Date(a.publishedAt);
-            var bDate = new Date(b.publishedAt);
-            return aDate > bDate ? -1 : (aDate < bDate ? 1 : 0);
+            $("#video-container").find("div")[0].appendChild(fragment);
         }
     </script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
     <script src="https://apis.google.com/js/client.js?onload=googleApiClientReady"></script>
 </body>
 </html>
