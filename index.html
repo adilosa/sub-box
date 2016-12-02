@@ -43,27 +43,18 @@
                 <button class="btn btn-primary" id="login-link">Authorize</button>
             </div>
         </div>
+        <div class="row"><div id="info" class="col-xs-12"></div></div>
         <div id="video-container" class="row"><div class="col-xs-12"></div></div>
     </div>
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
     <script type="text/javascript">
         var OAUTH2_CLIENT_ID = '126126374554-rds5pbeaqeriq64jqfsnmgev16rnhn72.apps.googleusercontent.com';
-        var OAUTH2_SCOPES = [
-          'https://www.googleapis.com/auth/youtube'
-        ];
+        var OAUTH2_SCOPES = ['https://www.googleapis.com/auth/youtube'];
 
-        googleApiClientReady = function() {
-          gapi.auth.init(function() {
-              window.setTimeout(checkAuth, 1);
-          });
-        }
+        googleApiClientReady = function() { gapi.auth.init(function() { window.setTimeout(checkAuth, 1); }); };
 
         function checkAuth() {
-          gapi.auth.authorize({
-            client_id: OAUTH2_CLIENT_ID,
-            scope: OAUTH2_SCOPES,
-            immediate: true
-          }, handleAuthResult);
+          gapi.auth.authorize({ client_id: OAUTH2_CLIENT_ID, scope: OAUTH2_SCOPES, immediate: false }, handleAuthResult);
         }
 
         function handleAuthResult(authResult) {
@@ -72,29 +63,24 @@
             loadAPIClientInterfaces();
           } else {
             $('#login-link').click(function() {
-              gapi.auth.authorize({
-                client_id: OAUTH2_CLIENT_ID,
-                scope: OAUTH2_SCOPES,
-                immediate: false
-                }, handleAuthResult);
+              gapi.auth.authorize(
+                { client_id: OAUTH2_CLIENT_ID, scope: OAUTH2_SCOPES, immediate: false }, handleAuthResult
+              );
             });
           }
         }
 
         function loadAPIClientInterfaces() {
-          gapi.client.load('youtube', 'v3', function() {
-              requestUserSubscriptions();
-          });
+            gapi.client.load('youtube', 'v3', function() { 
+                $("#info").append('<span>Loading subscriptions...</span>');
+                requestUserSubscriptions(); 
+            });
         }
 
         var subscriptions = [];
         function requestUserSubscriptions(pageToken) {
-            if (!pageToken) subscriptions = [];
-            var requestOptions = {
-                mine: true,
-                part: 'snippet',
-                maxResults: 50
-            }
+            if (!pageToken) { subscriptions = []; }
+            var requestOptions = { mine: true, part: 'snippet', maxResults: 50 };
             if (pageToken) requestOptions.pageToken = pageToken;
             gapi.client.youtube.subscriptions.list(requestOptions).then(function (response) {
                 $.each(response.result.items, function(i, subscription) {
@@ -106,14 +92,15 @@
         }
 
         function requestChannelInfo() {
+            $("#info").append('<span>loaded ' + subscriptions.length + ' subs. Loading channels...</span>');
             playlistIds = [];
             var batch = gapi.client.newBatch();
             while (subscriptions.length) {
-                batch.add(gapi.client.youtube.channels.list({
-                    part: 'contentDetails',
-                    id: subscriptions.splice(0, 50).join(','),
-                    maxResults: 50
-                }));
+                batch.add(
+                    gapi.client.youtube.channels.list(
+                        { part: 'contentDetails', id: subscriptions.splice(0, 50).join(','), maxResults: 50 }
+                    )
+                );
             }
             batch.then(function(responses) {
                 $.each(responses.result, function(i, response) {
@@ -126,14 +113,15 @@
         }
 
         function requestPlaylists(playlistIds) {
+            $("#info").append('<span>Loading uploaded playlists...</span>');
             videoIds = [];
             var batch = gapi.client.newBatch();
             while(playlistIds.length) {
-                batch.add(gapi.client.youtube.playlistItems.list({
-                    playlistId: playlistIds.splice(0,1),
-                    part: 'snippet',
-                    maxResults: 5
-                }));
+                batch.add(
+                    gapi.client.youtube.playlistItems.list(
+                        { playlistId: playlistIds.splice(0,1), part: 'snippet', maxResults: 5 }
+                    )
+                );
             }
             batch.then(function(responses) {
                 $.each(responses.result, function(i, response) {
@@ -146,20 +134,19 @@
         }
 
         function requestVideos(videoIds) {
+            $("#info").append('<span>Loading videos...</span>');
             videos = [];
             var batch = gapi.client.newBatch();
             while(videoIds.length) {
-                batch.add(gapi.client.youtube.videos.list({
-                    id: videoIds.splice(0,50).join(','),
-                    part: 'snippet',
-                    maxResults: 50
-                }));
+                batch.add(
+                    gapi.client.youtube.videos.list(
+                        { id: videoIds.splice(0,50).join(','), part: 'snippet', maxResults: 50 }
+                    )
+                );
             }
             batch.then(function(responses) {
                 $.each(responses.result, function(i, response) {
-                    $.each(response.result.items, function(i, video) {
-                        videos.push(video);
-                    });
+                    $.each(response.result.items, function(i, video) { videos.push(video); });
                 });
                 displayVideos(videos);
             });
@@ -167,7 +154,8 @@
 
         function displayVideos(videos) {
             videos.sort(function(a, b) {
-                a = new Date(a.snippet.publishedAt); b = new Date(b.snippet.publishedAt);
+                a = new Date(a.snippet.publishedAt); 
+                b = new Date(b.snippet.publishedAt);
                 return a > b ? -1 : (a < b ? 1 : 0);
             });
             var fragment = document.createDocumentFragment();
