@@ -1,186 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head lang="en">
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sub-Box</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
     <style type="text/css">
-        body {
-            padding-top: 50px;
-            background: #f1f1f1;
-        }
-
-        #login-container {
-            padding: 40px 16px;
-            text-align: center;
-        }
-
-        #video-container {
-            margin: 10px 0;
-            background: #fff;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, .1);
-        }
-
-        .video {
-            border-bottom: 1px solid #e2e2e2;
-            padding: 15px;
-        }
-
-        .video img {
-            padding-bottom: 10px;
-            width: 100%;
-        }
+        body { background: #f1f1f1; line-height: 1.3em; }
+        .main.container { font-size: 14px; }
+        #login-container { padding: 40px 16px; text-align: center; }
+        #video-container { margin: 10px 0; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .1); }
+        .video { height: 210px; padding: 15px; display: flex; flex-direction: column; }
+        .video .title { overflow: hidden; max-height: 2.6em; font-weight: 500; }
+        .video .img-container { width: 180px; height: 100px; padding-bottom: 10px; }
+        .video img { width: 100%; height: 100%; object-fit: cover; }
+        .video .channel, .video .time { color: #767676; font-size: 12px; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <nav class="navbar navbar-default">
+      <div class="container"><div class="navbar-header"><a href="#" class="navbar-brand">Sub-Box</small></a></div></div>
+    </nav>
+    <div class="main container">
         <div class="row">
             <div id="login-container" class="pre-auth col-xs-12 col-sm-6 col-sm-offset-3">
                 <h1>Access to YouTube Required</h1>
-                <p class="lead">This application requires acces to your YouTube account in order to see what channel's your subscribed to.</p>
-                <button class="btn btn-primary" id="login-link">Authorize</button>
+                <p class="lead">This application requires acces to your YouTube account in order to see what channels you're subscribed to.</p>
+                <button class="btn btn-primary" id="login-link">Authorize with OAuth</button>
             </div>
         </div>
-        <div class="row"><div id="info" class="col-xs-12"></div></div>
-        <div id="video-container" class="row"><div class="col-xs-12"></div></div>
+        <div class="row"><div id="video-container" class="col-xs-12"></div></div>
     </div>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
     <script type="text/javascript">
-        var OAUTH2_CLIENT_ID = '126126374554-rds5pbeaqeriq64jqfsnmgev16rnhn72.apps.googleusercontent.com';
-        var OAUTH2_SCOPES = ['https://www.googleapis.com/auth/youtube'];
+        var threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-        googleApiClientReady = function() { gapi.auth.init(function() { window.setTimeout(checkAuth, 1); }); };
+        checkAuth = () => gapi.auth.authorize({ 
+            client_id: '126126374554-rds5pbeaqeriq64jqfsnmgev16rnhn72.apps.googleusercontent.com', 
+            scope: ['https://www.googleapis.com/auth/youtube'], immediate: false
+        }, handleAuthResult);
 
-        function checkAuth() {
-          gapi.auth.authorize({ client_id: OAUTH2_CLIENT_ID, scope: OAUTH2_SCOPES, immediate: false }, handleAuthResult);
-        }
+        googleApiClientReady = () => gapi.auth.init(() => window.setTimeout(checkAuth, 1));
 
         function handleAuthResult(authResult) {
           if (authResult && !authResult.error) {
             $('.pre-auth').hide();
-            loadAPIClientInterfaces();
+            gapi.client.load('youtube', 'v3', () => subscriptions(gapi.client.youtube));
           } else {
-            $('#login-link').click(function() {
-              gapi.auth.authorize(
-                { client_id: OAUTH2_CLIENT_ID, scope: OAUTH2_SCOPES, immediate: false }, handleAuthResult
-              );
-            });
+            $('#login-link').click(checkAuth);
           }
         }
 
-        function loadAPIClientInterfaces() {
-            gapi.client.load('youtube', 'v3', function() { 
-                $("#info").append('<span>Loading subscriptions...</span>');
-                requestUserSubscriptions(); 
-            });
-        }
-
-        var subscriptions = [];
-        function requestUserSubscriptions(pageToken) {
-            if (!pageToken) { subscriptions = []; }
-            var requestOptions = { mine: true, part: 'snippet', maxResults: 50 };
-            if (pageToken) requestOptions.pageToken = pageToken;
-            gapi.client.youtube.subscriptions.list(requestOptions).then(function (response) {
-                $.each(response.result.items, function(i, subscription) {
-                    subscriptions.push(subscription.snippet.resourceId.channelId);
-                });
-                var next = response.result.nextPageToken;
-                next ? requestUserSubscriptions(next) : requestChannelInfo()
-            });
-        }
-
-        function requestChannelInfo() {
-            $("#info").append('<span>loaded ' + subscriptions.length + ' subs. Loading channels...</span>');
-            playlistIds = [];
-            var batch = gapi.client.newBatch();
-            while (subscriptions.length) {
-                batch.add(
-                    gapi.client.youtube.channels.list(
-                        { part: 'contentDetails', id: subscriptions.splice(0, 50).join(','), maxResults: 50 }
-                    )
-                );
-            }
-            batch.then(function(responses) {
-                $.each(responses.result, function(i, response) {
-                    $.each(response.result.items, function(i, channel) {
-                        playlistIds.push(channel.contentDetails.relatedPlaylists.uploads);
+        function subscriptions(youtube, token) {
+            youtube.subscriptions.list({ mine: true, part: 'snippet', maxResults: 50, pageToken: token}).then(response => {
+                youtube.channels.list({ 
+                    part: 'contentDetails', maxResults: 50,
+                    id: response.result.items.map(sub => sub.snippet.resourceId.channelId).join(',')
+                }).then( response => {
+                    var videos = [];
+                    var batch = gapi.client.newBatch();
+                    response.result.items.map(ch => ch.contentDetails.relatedPlaylists.uploads).forEach( 
+                        id => batch.add(youtube.playlistItems.list({ playlistId: id, part: 'snippet', maxResults: 5 }))
+                    );
+                    batch.then(responses => {
+                        [].concat.apply(
+                            [], Object.keys(responses.result).map( key => responses.result[key].result.items )
+                        ).filter( video => new Date(video.snippet.publishedAt) > threeDaysAgo )
+                        .forEach( video => {
+                                date = new Date(video.snippet.publishedAt);
+                                videos.push({ 
+                                    date: date, 
+                                    html: $('<div>').addClass('video col-xs-6 col-sm-4 col-md-2')
+                                          .append(
+                                              ytlink(video).append(
+                                                  $('<div>').addClass('img-container').append(
+                                                      $('<img>').attr({src: video.snippet.thumbnails.medium.url})
+                                                  )
+                                              )
+                                          )
+                                          .append(ytlink(video).addClass('title').text(video.snippet.title))
+                                          .append($('<span>').addClass('channel').text(video.snippet.channelTitle))
+                                          .append($('<span>').addClass('time').text(date.toLocaleString()))
+                                });
+                                videos.sort( (a, b) => b.date - a.date );
+                            }
+                        );
+                        $("#video-container").append(videos.map(vid => vid.html));
                     });
                 });
-                requestPlaylists(playlistIds);
+                if(response.result.nextPageToken) subscriptions(youtube, response.result.nextPageToken);
             });
         }
 
-        function requestPlaylists(playlistIds) {
-            $("#info").append('<span>Loading uploaded playlists...</span>');
-            videoIds = [];
-            var batch = gapi.client.newBatch();
-            while(playlistIds.length) {
-                batch.add(
-                    gapi.client.youtube.playlistItems.list(
-                        { playlistId: playlistIds.splice(0,1), part: 'snippet', maxResults: 5 }
-                    )
-                );
-            }
-            batch.then(function(responses) {
-                $.each(responses.result, function(i, response) {
-                    $.each(response.result.items, function(i, playlistItem) {
-                        videoIds.push(playlistItem.snippet.resourceId.videoId);
-                    });
-                });
-                requestVideos(videoIds);
-            });
-        }
-
-        function requestVideos(videoIds) {
-            $("#info").append('<span>Loading videos...</span>');
-            videos = [];
-            var batch = gapi.client.newBatch();
-            while(videoIds.length) {
-                batch.add(
-                    gapi.client.youtube.videos.list(
-                        { id: videoIds.splice(0,50).join(','), part: 'snippet', maxResults: 50 }
-                    )
-                );
-            }
-            batch.then(function(responses) {
-                $.each(responses.result, function(i, response) {
-                    $.each(response.result.items, function(i, video) { videos.push(video); });
-                });
-                displayVideos(videos);
-            });
-        }
-
-        function displayVideos(videos) {
-            videos.sort(function(a, b) {
-                a = new Date(a.snippet.publishedAt); 
-                b = new Date(b.snippet.publishedAt);
-                return a > b ? -1 : (a < b ? 1 : 0);
-            });
-            var fragment = document.createDocumentFragment();
-            $.each(videos.slice(0,100), function(i, video) {
-                var d = document.createElement('div');
-                d.className = "row video";
-                d.innerHTML = "<div class='col-xs-12'>" +
-                                   "<div class='row'>" +
-                                       "<div class='col-xs-12'><h4>" + video.snippet.channelTitle + "</h4></div>" +
-                                   "</div>" +
-                                   "<div class='row'>" +
-                                       "<div class='col-xs-12 col-sm-5 col-md-4'>" +
-                                           "<a href='https://youtube.com/watch?v=" + video.id + "'><img src='" + video.snippet.thumbnails.medium.url + "'></a>" +
-                                       "</div>" +
-                                       "<div class='col-xs-12 col-sm-7 col-md-8'>" +
-                                           "<a href='https://youtube.com/watch?v=" + video.id + "'><strong>" + video.snippet.title + "</strong></a>" +
-                                           "<p>" + new Date(video.snippet.publishedAt).toLocaleString() + "</p>" +
-                                           "<p>" + video.snippet.description + "</p>" +
-                                       "</div>" +
-                                   "</div>" +
-                              "</div>";
-                fragment.appendChild(d);
-            });
-            $("#video-container").find("div")[0].appendChild(fragment);
-        }
+        ytlink = vid => $('<a>').attr({href: 'https://youtube.com/watch?v=' + vid.snippet.resourceId.videoId});
     </script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
     <script src="https://apis.google.com/js/client.js?onload=googleApiClientReady"></script>
